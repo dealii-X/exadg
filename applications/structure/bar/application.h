@@ -22,6 +22,8 @@
 #ifndef STRUCTURE_BAR
 #define STRUCTURE_BAR
 
+#include <exadg/grid/deformed_cube_manifold.h>
+
 namespace ExaDG
 {
 namespace Structure
@@ -239,45 +241,48 @@ public:
   {
     ApplicationBase<dim, Number>::add_parameters(prm);
 
+    // clang-format off
     prm.enter_subsection("Application");
     {
-      prm.add_parameter("Length", length, "Length of domain.");
-      prm.add_parameter("Height", height, "Height of domain.");
-      prm.add_parameter("Width", width, "Width of domain.");
-      prm.add_parameter("UseVolumeForce", use_volume_force, "Use volume force.");
-      prm.add_parameter("VolumeForce", volume_force, "Volume force.");
-      prm.add_parameter("BoundaryType",
-                        boundary_type,
-                        "Type of boundary condition, Dirichlet vs Neumann.");
-      prm.add_parameter("ProblemType",
-                        problem_type,
-                        "Problem type considered, QuasiStatic vs Unsteady vs. Steady");
-      prm.add_parameter("LargeDeformation",
-                        large_deformation,
-                        "Consider finite strains or linear elasticity.");
-      prm.add_parameter("Preconditioner", preconditioner, "Preconditioner for the linear system.");
-      prm.add_parameter("WeakDamping",
-                        weak_damping_coefficient,
-                        "Weak damping coefficient for unsteady problems.");
-      prm.add_parameter("Displacement",
-                        displacement,
-                        "Displacement of right boundary in case of Dirichlet BC.");
-      prm.add_parameter("Traction",
-                        area_force,
-                        "Traction acting on right boundary in case of Neumann BC.");
+      prm.add_parameter("Length",                length,                   "Length of domain.");
+      prm.add_parameter("Height",                height,                   "Height of domain.");
+      prm.add_parameter("Width",                 width,                    "Width of domain.");
+      prm.add_parameter("UseVolumeForce",        use_volume_force,         "Use volume force.");
+      prm.add_parameter("SpatialIntegration",    spatial_integration,      "Use spatial integration.");
+      prm.add_parameter("ForceMaterialResidual", force_material_residual,  "Use undeformed configuration to evaluate the residual.");
+      prm.add_parameter("StableFormulation",     stable_formulation,       "Use a stable formulation.");
+      prm.add_parameter("LoadIncrement",         load_increment,           "Load increment used in QuasiStatic solver.");
+      prm.add_parameter("CacheLevel",            cache_level,              "Cache level: 0 none, 1 scalars, 2 tensors.");
+      prm.add_parameter("CheckType",             check_type,               "Check type for deformation gradient.");
+      prm.add_parameter("MappingStrength",       mapping_strength,         "Strength of the mapping applied.");
+      prm.add_parameter("VolumeForce",           volume_force,             "Volume force.");
+      prm.add_parameter("BoundaryType",          boundary_type,            "Type of boundary condition, Dirichlet vs Neumann.");
+      prm.add_parameter("ProblemType",           problem_type,             "Problem type considered, QuasiStatic vs Unsteady vs. Steady");
+      prm.add_parameter("MaterialType",          material_type,            "StVenantKirchhoff vs. IncompressibleNeoHookean");
+      prm.add_parameter("WeakDamping",           weak_damping_coefficient, "Weak damping coefficient for unsteady problems.");
+      prm.add_parameter("Displacement",          displacement,             "Displacement of right boundary in case of Dirichlet BC.");
+      prm.add_parameter("Traction",              area_force,               "Traction acting on right boundary in case of Neumann BC.");
+      prm.add_parameter("LargeDeformation",      large_deformation,        "Consider finite strains or linear elasticity.");
+      prm.add_parameter("Preconditioner",        preconditioner,           "None, PointJacobi, AMG, AdditiveSchwarz or Multigrid");
     }
     prm.leave_subsection();
+    // clang-format on
   }
 
 private:
   void
   set_parameters() final
   {
-    this->param.problem_type         = problem_type;
-    this->param.body_force           = use_volume_force;
-    this->param.large_deformation    = large_deformation;
-    this->param.pull_back_body_force = false;
-    this->param.pull_back_traction   = false;
+    this->param.problem_type            = problem_type;
+    this->param.body_force              = use_volume_force;
+    this->param.large_deformation       = large_deformation;
+    this->param.pull_back_body_force    = false;
+    this->param.pull_back_traction      = false;
+    this->param.spatial_integration     = spatial_integration;
+    this->param.cache_level             = cache_level;
+    this->param.check_type              = check_type;
+    this->param.force_material_residual = force_material_residual;
+    this->param.stable_formulation      = stable_formulation;
 
     this->param.density = density;
     if(this->param.problem_type == ProblemType::Unsteady and weak_damping_coefficient > 0.0)
@@ -294,8 +299,8 @@ private:
     this->param.solver_info_data.interval_time_steps =
       problem_type == ProblemType::Unsteady ? 20 : 2;
 
-    this->param.mapping_degree              = 1;
-    this->param.mapping_degree_coarse_grids = this->param.mapping_degree;
+    this->param.mapping_degree              = this->param.degree;
+    this->param.mapping_degree_coarse_grids = this->param.degree;
 
     this->param.grid.element_type = ElementType::Hypercube; // Simplex;
     if(this->param.grid.element_type == ElementType::Simplex)
@@ -309,26 +314,52 @@ private:
       this->param.grid.create_coarse_triangulations = false; // can also be set to true if desired
     }
 
-    this->param.load_increment = 0.5;
+    this->param.load_increment = load_increment;
 
-    this->param.newton_solver_data  = Newton::SolverData(1e2, 1.e-9, 1.e-9);
+    this->param.newton_solver_data  = Newton::SolverData(1e2, 1.e-9, 1.e-4);
     this->param.solver              = Solver::FGMRES;
-    this->param.solver_data         = SolverData(1e3, 1.e-12, 1.e-8, 100);
+    this->param.solver_data         = SolverData(1e3, 1.e-14, 1.e-8, 30);
     this->param.preconditioner      = preconditioner;
     this->param.multigrid_data.type = MultigridType::phMG;
 
-    this->param.multigrid_data.smoother_data.smoother       = MultigridSmoother::Chebyshev;
+    this->param.multigrid_data.p_sequence             = PSequenceType::DecreaseByOne; // Bisect;
+    this->param.multigrid_data.smoother_data.smoother = MultigridSmoother::Chebyshev;
     this->param.multigrid_data.smoother_data.preconditioner = PreconditionerSmoother::PointJacobi;
+    this->param.multigrid_data.smoother_data.iterations     = 12;
+    this->param.multigrid_data.smoother_data.relaxation_factor = 0.8; // Jacobi,    default: 0.8
+    this->param.multigrid_data.smoother_data.smoothing_range   = 60;  // Chebyshev, default: 20
+    this->param.multigrid_data.smoother_data.iterations_eigenvalue_estimation =
+      20; // Chebyshev, default: 20
 
-    this->param.multigrid_data.coarse_problem.solver = MultigridCoarseGridSolver::CG;
+    this->param.multigrid_data.coarse_problem.solver      = MultigridCoarseGridSolver::GMRES;
+    this->param.multigrid_data.coarse_problem.solver_data = SolverData(1e3, 1.e-12, 1.e-3, 30);
+
     this->param.multigrid_data.coarse_problem.preconditioner =
       MultigridCoarseGridPreconditioner::AMG;
 
-    this->param.update_preconditioner                  = true;
-    this->param.update_preconditioner_every_time_steps = 1;
-    this->param.update_preconditioner_every_newton_iterations =
-      this->param.newton_solver_data.max_iter;
-    this->param.update_preconditioner_once_newton_converged = true;
+#ifdef DEAL_II_WITH_TRILINOS
+    this->param.multigrid_data.coarse_problem.amg_data.amg_operator_type =
+      AMGOperatorType::Elasticity;
+
+    this->param.multigrid_data.coarse_problem.amg_data.ml_data.elliptic = true;
+    this->param.multigrid_data.coarse_problem.amg_data.ml_data.higher_order_elements =
+      this->param.degree > 1;
+    this->param.multigrid_data.coarse_problem.amg_data.ml_data.n_cycles              = 2;
+    this->param.multigrid_data.coarse_problem.amg_data.ml_data.w_cycle               = false;
+    this->param.multigrid_data.coarse_problem.amg_data.ml_data.aggregation_threshold = 1e-4;
+    this->param.multigrid_data.coarse_problem.amg_data.ml_data.smoother_sweeps       = 2;
+    this->param.multigrid_data.coarse_problem.amg_data.ml_data.smoother_overlap      = 2;
+    this->param.multigrid_data.coarse_problem.amg_data.ml_data.smoother_type         = "ILU";
+    this->param.multigrid_data.coarse_problem.amg_data.ml_data.coarse_type           = "Amesos-KLU";
+#endif
+
+    this->param.update_preconditioner                         = true;
+    this->param.update_preconditioner_every_time_steps        = 1;
+    this->param.update_preconditioner_every_newton_iterations = 5;
+    this->param.update_preconditioner_once_newton_converged   = true;
+
+    this->param.use_matrix_based_implementation = false;
+    this->param.sparse_matrix_type              = SparseMatrixType::Trilinos;
   }
 
   void
@@ -430,6 +461,12 @@ private:
 
         if(global_refinements > 0)
           tria.refine_global(global_refinements);
+
+        // Apply manifold map on a uniform cube
+        unsigned int const frequency = 1;
+        if(std::abs(this->length - this->height) < 1e-12)
+          if(dim == 2 or std::abs(this->length - this->width) < 1e-12)
+            apply_deformed_cube_manifold(tria, 0.0, this->length, mapping_strength, frequency);
       };
 
     GridUtilities::create_triangulation_with_multigrid<dim>(grid,
@@ -559,12 +596,80 @@ private:
   {
     typedef std::pair<dealii::types::material_id, std::shared_ptr<MaterialData>> Pair;
 
-    MaterialType const type = MaterialType::StVenantKirchhoff;
-    double const       E = E_modul, nu = 0.3;
-    Type2D const       two_dim_type = Type2D::PlaneStress;
+    if(material_type == MaterialType::StVenantKirchhoff)
+    {
+      Type2D const two_dim_type = Type2D::PlaneStress;
+      double const nu           = 0.3;
+      this->material_descriptor->insert(
+        Pair(0, new StVenantKirchhoffData<dim>(material_type, E_modul, nu, two_dim_type)));
+    }
+    else if(material_type == MaterialType::IncompressibleNeoHookean)
+    {
+      Type2D const two_dim_type  = Type2D::Undefined;
+      double const shear_modulus = 1.0e2;
+      double const nu            = 0.49;
+      double const bulk_modulus  = shear_modulus * 2.0 * (1.0 + nu) / (3.0 * (1.0 - 2.0 * nu));
 
-    this->material_descriptor->insert(
-      Pair(0, new StVenantKirchhoffData<dim>(type, E, nu, two_dim_type)));
+      this->material_descriptor->insert(Pair(0,
+                                             new IncompressibleNeoHookeanData<dim>(material_type,
+                                                                                   shear_modulus,
+                                                                                   bulk_modulus,
+                                                                                   two_dim_type)));
+    }
+    else if(material_type == MaterialType::CompressibleNeoHookean)
+    {
+      Type2D const two_dim_type  = Type2D::Undefined;
+      double const shear_modulus = 1.0e2;
+      double const nu            = 0.3;
+      double const lambda        = shear_modulus * 2.0 * nu / (1.0 - 2.0 * nu);
+
+      this->material_descriptor->insert(Pair(
+        0,
+        new CompressibleNeoHookeanData<dim>(material_type, shear_modulus, lambda, two_dim_type)));
+    }
+    else if(material_type == MaterialType::IncompressibleFibrousTissue)
+    {
+      Type2D const two_dim_type  = Type2D::Undefined;
+      double const shear_modulus = 1.0e2;
+      double const nu            = 0.49;
+      double const bulk_modulus  = shear_modulus * 2.0 * (1.0 + nu) / (3.0 * (1.0 - 2.0 * nu));
+
+      // Parameters corresponding to aortic tissue might be found in
+      // [Weisbecker et al., J Mech Behav Biomed Mater 12, 2012] or
+      // [Rolf-Pissarczyk et al., Comput Methods Appl Mech Eng 373, 2021].
+      // a = 3.62, b = 34.3 for medial tissue lead to the H_ii below,
+      // while the k_1 coefficient is scaled relative to the shear modulus
+      // (for medial tissue, e.g., 62.1 kPa) used in the other cases here.
+      double const fiber_angle_phi_in_degree = 27.47;                          // [deg]
+      double const fiber_H_11                = 0.9168;                         // [-]
+      double const fiber_H_22                = 0.0759;                         // [-]
+      double const fiber_H_33                = 0.0073;                         // [-]
+      double const fiber_k_1                 = 1.4e3 / 62.1e3 * shear_modulus; // [Pa]
+      double const fiber_k_2                 = 22.1;                           // [-]
+      double const fiber_switch_limit        = 1.0;                            // [-]
+
+      this->material_descriptor->insert(
+        Pair(0,
+             new IncompressibleFibrousTissueData<dim>(material_type,
+                                                      shear_modulus,
+                                                      bulk_modulus,
+                                                      fiber_angle_phi_in_degree,
+                                                      fiber_H_11,
+                                                      fiber_H_22,
+                                                      fiber_H_33,
+                                                      fiber_k_1,
+                                                      fiber_k_2,
+                                                      fiber_switch_limit,
+                                                      nullptr /* e1_orientations */,
+                                                      nullptr /* e2_orientations */,
+                                                      {},
+                                                      0.0 /* point_tolerance */,
+                                                      two_dim_type)));
+    }
+    else
+    {
+      AssertThrow(false, dealii::ExcMessage("Material type is not expected in application."));
+    }
   }
 
   void
@@ -629,6 +734,13 @@ private:
   bool use_volume_force  = true;
   bool large_deformation = true;
 
+  bool spatial_integration     = false;
+  bool force_material_residual = false;
+  bool stable_formulation      = true;
+
+  unsigned int check_type  = 0;
+  unsigned int cache_level = 0;
+
   bool const clamp_at_right_boundary = false;
   bool const clamp_at_left_boundary  = false;
 
@@ -649,15 +761,20 @@ private:
   double displacement = 1.0; // "Dirichlet"
   double area_force   = 1.0; // "Neumann"
 
-  // mesh parameters
-  unsigned int const repetitions0 = 4, repetitions1 = 1, repetitions2 = 1;
+  double load_increment = 0.1;
 
-  double const E_modul = 200.0;
+  // mesh parameters
+  unsigned int const repetitions0 = 1, repetitions1 = 1, repetitions2 = 1;
+
+  MaterialType material_type = MaterialType::StVenantKirchhoff;
+  double const E_modul       = 200.0;
 
   double const start_time = 0.0;
   double const end_time   = 1.0;
 
   double const density = 0.001;
+
+  double mapping_strength = 0.0;
 };
 
 } // namespace Structure

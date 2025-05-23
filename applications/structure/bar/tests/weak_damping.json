@@ -19,6 +19,7 @@
         "Height": "10.0",
         "Width": "10.0",
         "ProblemType": "Unsteady",
+        "MaterialType": "StVenantKirchhoff",
         "LargeDeformation": "true",
         "Preconditioner": "Multigrid",
         "WeakDamping": "10000.0",

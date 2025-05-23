@@ -218,39 +218,68 @@ Driver<dim, Number>::apply_operator(OperatorType const & operator_type,
   pde_operator->initialize_dof_vector(dst);
   src = 1.0;
 
-  pde_operator->update_elasticity_operator(1.0, 0.0);
-
-  if(operator_type == OperatorType::Apply)
+  if(application->get_parameters().large_deformation)
   {
-    if(application->get_parameters().large_deformation)
-    {
-      pde_operator->initialize_dof_vector(linearization);
-      linearization = 1.0;
-      pde_operator->set_solution_linearization(linearization);
-    }
-    else
-    {
-      pde_operator->assemble_matrix_if_necessary_for_linear_elasticity_operator();
-    }
+    pde_operator->initialize_dof_vector(linearization);
+    linearization = 1.0;
+    pde_operator->set_solution_linearization(linearization);
+  }
+  else
+  {
+    pde_operator->assemble_matrix_if_necessary_for_linear_elasticity_operator();
   }
 
-  const std::function<void(void)> operator_evaluation = [&](void) {
-    if(operator_type == OperatorType::Evaluate)
-    {
-      pde_operator->evaluate_elasticity_operator(dst, src, 1.0, 0.0);
-    }
-    else if(operator_type == OperatorType::Apply)
-    {
-      pde_operator->apply_elasticity_operator(dst, src);
-    }
-  };
+  double wall_time = std::numeric_limits<double>::max();
+  {
+    dealii::Timer global_timer;
+    global_timer.restart();
+    dealii::Utilities::MPI::MinMaxAvg global_time;
 
-  // do the measurements
-  double const wall_time = measure_operator_evaluation_time(operator_evaluation,
-                                                            application->get_parameters().degree,
-                                                            n_repetitions_inner,
-                                                            n_repetitions_outer,
-                                                            mpi_comm);
+    do
+    {
+      for(unsigned int i_outer = 0; i_outer < n_repetitions_outer; ++i_outer)
+      {
+        dealii::Timer timer;
+        timer.restart();
+
+#ifdef EXADG_WITH_LIKWID
+        unsigned int const degree = application->get_parameters().degree;
+        LIKWID_MARKER_START(("degree_" + std::to_string(degree)).c_str());
+#endif
+
+        // apply matrix-vector product several times
+        for(unsigned int i = 0; i < n_repetitions_inner; ++i)
+        {
+          if(operator_type == OperatorType::Evaluate)
+          {
+            // Contains update of mapping for `large_deformation == true`, but
+            // does neither update underlying matrices operators nor cell data.
+            pde_operator->evaluate_elasticity_operator(dst, src, 1.0, 0.0);
+          }
+          else if(operator_type == OperatorType::Apply)
+          {
+            if(i == 0 and application->get_parameters().large_deformation)
+            {
+              pde_operator->set_solution_linearization(linearization);
+            }
+            pde_operator->apply_elasticity_operator(dst, src);
+          }
+        }
+
+#ifdef EXADG_WITH_LIKWID
+        LIKWID_MARKER_STOP(("degree_" + std::to_string(degree)).c_str());
+#endif
+
+        MPI_Barrier(mpi_comm);
+        dealii::Utilities::MPI::MinMaxAvg wall_time_inner =
+          dealii::Utilities::MPI::min_max_avg(timer.wall_time(), mpi_comm);
+
+        wall_time = std::min(wall_time, wall_time_inner.avg / (double)n_repetitions_inner);
+      }
+
+      global_time = dealii::Utilities::MPI::min_max_avg(global_timer.wall_time(), mpi_comm);
+    } while(global_time.avg < 1.0 /*wall time in seconds*/);
+  }
 
   // calculate throughput
   dealii::types::global_dof_index const dofs = pde_operator->get_number_of_dofs();
@@ -262,10 +291,10 @@ Driver<dim, Number>::apply_operator(OperatorType const & operator_type,
   if(not(is_test))
   {
     // clang-format off
-    pcout << std::endl
-          << std::scientific << std::setprecision(4)
-          << "DoFs/sec:        " << throughput << std::endl
-          << "DoFs/(sec*core): " << throughput/(double)N_mpi_processes << std::endl;
+	    pcout << std::endl
+	          << std::scientific << std::setprecision(4)
+	          << "DoFs/sec:        " << throughput << std::endl
+	          << "DoFs/(sec*core): " << throughput/(double)N_mpi_processes << std::endl;
     // clang-format on
   }
 

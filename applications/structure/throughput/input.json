@@ -1,0 +1,38 @@
+{
+    "General": {
+        "Precision": "double",
+        "Dim": "3",
+        "IsTest": "false"
+    },
+    "Resolution": {
+        "RunType": "FixedProblemSize",
+        "ElementType": "Hypercube",
+        "DegreeMin": "1",
+        "DegreeMax": "8",
+        "RefineSpaceMin": "0",
+        "RefineSpaceMax": "0",
+        "DofsMin": "100000",
+        "DofsMax": "1000000"
+    },
+    "Throughput": {
+        "OperatorType": "Apply",
+        "RepetitionsInner": "100",
+        "RepetitionsOuter": "1"
+    },
+    "Application": {
+        "ProblemType": "QuasiStatic",
+        "MaterialType": "IncompressibleFibrousTissue",
+        "WeakDamping": "0.0",
+        "SpatialIntegration": "true",
+        "ForceMaterialResidual": "false",
+        "StableFormulation": "true",
+        "CacheLevel": "2",
+        "CheckType": "0",
+        "MappingStrength": "0.0"
+    },
+    "Output": {
+        "OutputDirectory": "output/no_output_is_written/",
+        "OutputName": "test",
+        "WriteOutput": "false"
+    }
+}

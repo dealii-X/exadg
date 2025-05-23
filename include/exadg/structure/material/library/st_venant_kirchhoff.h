@@ -63,24 +63,34 @@ public:
   typedef std::pair<unsigned int, unsigned int>              Range;
   typedef CellIntegrator<dim, dim, Number>                   IntegratorCell;
 
+  typedef dealii::VectorizedArray<Number>                                  scalar;
+  typedef dealii::Tensor<2, dim, dealii::VectorizedArray<Number>>          tensor;
+  typedef dealii::SymmetricTensor<2, dim, dealii::VectorizedArray<Number>> symmetric_tensor;
+
   StVenantKirchhoff(dealii::MatrixFree<dim, Number> const & matrix_free,
                     unsigned int const                      dof_index,
                     unsigned int const                      quad_index,
                     StVenantKirchhoffData<dim> const &      data,
                     bool const                              large_deformation);
 
-  dealii::Tensor<2, dim, dealii::VectorizedArray<Number>>
-  second_piola_kirchhoff_stress(
-    dealii::Tensor<2, dim, dealii::VectorizedArray<Number>> const & gradient_displacement,
-    unsigned int const                                              cell,
-    unsigned int const                                              q) const final;
+  symmetric_tensor
+  second_piola_kirchhoff_stress(tensor const &     gradient_displacement,
+                                unsigned int const cell,
+                                unsigned int const q) const final;
 
-  dealii::Tensor<2, dim, dealii::VectorizedArray<Number>>
-  second_piola_kirchhoff_stress_displacement_derivative(
-    dealii::Tensor<2, dim, dealii::VectorizedArray<Number>> const & gradient_increment,
-    dealii::Tensor<2, dim, dealii::VectorizedArray<Number>> const & deformation_gradient,
-    unsigned int const                                              cell,
-    unsigned int const                                              q) const final;
+  symmetric_tensor
+  second_piola_kirchhoff_stress_eval(tensor const &     gradient_displacement,
+                                     unsigned int const cell,
+                                     unsigned int const q) const final;
+
+  symmetric_tensor
+  second_piola_kirchhoff_stress(unsigned int const cell, unsigned int const q) const final;
+
+  symmetric_tensor
+  second_piola_kirchhoff_stress_displacement_derivative(tensor const &     gradient_increment,
+                                                        tensor const &     gradient_displacement,
+                                                        unsigned int const cell,
+                                                        unsigned int const q) const final;
 
 private:
   /*
@@ -103,11 +113,10 @@ private:
    * Sij = f2 * (Eij + Eji),    for i, j = 1, ..., dim and i != j.
    * The latter symmetrizes the off-diagonal entries in the strain argument to reduce computations.
    */
-  dealii::Tensor<2, dim, dealii::VectorizedArray<Number>>
-  second_piola_kirchhoff_stress_symmetrize(
-    dealii::Tensor<2, dim, dealii::VectorizedArray<Number>> const & strain,
-    unsigned int const                                              cell,
-    unsigned int const                                              q) const;
+  symmetric_tensor
+  second_piola_kirchhoff_stress_symmetrize(tensor const &     strain,
+                                           unsigned int const cell,
+                                           unsigned int const q) const;
 
   /*
    * Store factors involving (potentially variable) Young's modulus.

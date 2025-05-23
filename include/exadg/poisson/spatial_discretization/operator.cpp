@@ -326,8 +326,8 @@ Operator<dim, n_components, Number>::setup_preconditioner_and_solver()
   }
   else if(param.preconditioner == Poisson::Preconditioner::AMG)
   {
-    preconditioner = std::make_shared<PreconditionerAMG<Laplace, Number>>(
-      laplace_operator, true, param.multigrid_data.coarse_problem.amg_data);
+    preconditioner = std::make_shared<PreconditionerAMG<dim, Laplace, Number>>(
+      laplace_operator, true, param.multigrid_data.coarse_problem.amg_data, dof_handler, *mapping);
   }
   else if(param.preconditioner == Poisson::Preconditioner::Multigrid)
   {
@@ -492,6 +492,7 @@ Operator<dim, n_components, Number>::solve(VectorType &       sol,
   {
     laplace_operator.set_time(time);
     laplace_operator.set_inhomogeneous_boundary_values(sol);
+    affine_constraints_periodicity_and_hanging_nodes.distribute(sol);
   }
 
   return n_iterations;

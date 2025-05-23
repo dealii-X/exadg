@@ -121,6 +121,22 @@ public:
   // the direction of the traction vector does not change by this pull-back operation.
   bool pull_back_traction;
 
+  // For finite strain problems, integrate the stress terms in the deformed configuration
+  // and if so, possibly force the residual to be evaluated in the material configuration
+  bool spatial_integration;
+  bool force_material_residual;
+
+  // Adopt numerically stable variants of the material models.
+  bool stable_formulation;
+
+  // For nonlinear mateiral models, check the determinant of the Jacobian
+  // and potentially modify it for J <= 0 and check_type > 0.
+  unsigned int check_type;
+
+  // For nonlinear problems, precompute some data in the integration points
+  // if cache_level > 0. The implementation depends on the material model applied.
+  unsigned int cache_level;
+
   /**************************************************************************************/
   /*                                                                                    */
   /*                                 PHYSICAL QUANTITIES                                */

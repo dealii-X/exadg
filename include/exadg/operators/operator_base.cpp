@@ -450,6 +450,19 @@ OperatorBase<dim, Number, n_components>::apply_matrix_based(VectorType &       d
   {
     AssertThrow(false, dealii::ExcMessage("not implemented."));
   }
+
+  if(not is_dg)
+  {
+    // Constrained degree of freedom are not removed from the system of equations.
+    // Instead, we set the diagonal entries of the matrix to 1 for these constrained
+    // degrees of freedom. This means that we simply copy the constrained values to the
+    // dst vector.
+    for(unsigned int const constrained_index :
+        matrix_free->get_constrained_dofs(this->data.dof_index))
+    {
+      dst.local_element(constrained_index) = src.local_element(constrained_index);
+    }
+  }
 }
 
 template<int dim, typename Number, int n_components>
@@ -1898,7 +1911,6 @@ OperatorBase<dim, Number, n_components>::boundary_face_loop_block_diagonal(
   }
 }
 
-
 template<int dim, typename Number, int n_components>
 void
 OperatorBase<dim, Number, n_components>::cell_based_loop_block_diagonal(
@@ -2492,5 +2504,91 @@ template class OperatorBase<3, double, 1>;
 template class OperatorBase<3, double, 3>;
 template class OperatorBase<3, double, 4>;
 template class OperatorBase<3, double, 5>;
+
+#ifdef DEAL_II_WITH_PETSC
+typedef typename dealii::PETScWrappers::MPI::SparseMatrix PETScSparseMatrix;
+template void
+OperatorBase<2, float, 1>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<2, float, 2>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<2, float, 3>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<2, float, 4>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+
+template void
+OperatorBase<2, double, 1>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<2, double, 2>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<2, double, 3>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<2, double, 4>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+
+template void
+OperatorBase<3, float, 1>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<3, float, 2>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<3, float, 3>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<3, float, 4>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<3, float, 5>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+
+template void
+OperatorBase<3, double, 1>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<3, double, 2>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<3, double, 3>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<3, double, 4>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+template void
+OperatorBase<3, double, 5>::internal_calculate_system_matrix(PETScSparseMatrix &) const;
+#endif
+
+#ifdef DEAL_II_WITH_TRILINOS
+typedef typename dealii::TrilinosWrappers::SparseMatrix TrilinosSparseMatrix;
+template void
+OperatorBase<2, float, 1>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<2, float, 2>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<2, float, 3>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<2, float, 4>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+
+template void
+OperatorBase<2, double, 1>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<2, double, 2>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<2, double, 3>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<2, double, 4>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+
+template void
+OperatorBase<3, float, 1>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<3, float, 2>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<3, float, 3>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<3, float, 4>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<3, float, 5>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+
+template void
+OperatorBase<3, double, 1>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<3, double, 2>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<3, double, 3>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<3, double, 4>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+template void
+OperatorBase<3, double, 5>::internal_calculate_system_matrix(TrilinosSparseMatrix &) const;
+#endif
 
 } // namespace ExaDG
