@@ -22,7 +22,14 @@
 #ifndef INCLUDE_STRUCTURE_SPATIAL_DISCRETIZATION_NONLINEAR_OPERATOR_H_
 #define INCLUDE_STRUCTURE_SPATIAL_DISCRETIZATION_NONLINEAR_OPERATOR_H_
 
+#include <exadg/grid/mapping_dof_vector.h>
 #include <exadg/structure/spatial_discretization/operators/elasticity_operator_base.h>
+#ifdef DEAL_II_WITH_TRILINOS
+#  include <deal.II/lac/trilinos_sparse_matrix.h>
+#endif
+#ifdef DEAL_II_WITH_PETSC
+#  include <deal.II/lac/petsc_sparse_matrix.h>
+#endif
 
 namespace ExaDG
 {
@@ -42,9 +49,10 @@ private:
 
   typedef std::pair<unsigned int, unsigned int> Range;
 
-  typedef dealii::VectorizedArray<Number>                         scalar;
-  typedef dealii::Tensor<1, dim, dealii::VectorizedArray<Number>> vector;
-  typedef dealii::Tensor<2, dim, dealii::VectorizedArray<Number>> tensor;
+  typedef dealii::VectorizedArray<Number>                                  scalar;
+  typedef dealii::Tensor<1, dim, dealii::VectorizedArray<Number>>          vector;
+  typedef dealii::Tensor<2, dim, dealii::VectorizedArray<Number>>          tensor;
+  typedef dealii::SymmetricTensor<2, dim, dealii::VectorizedArray<Number>> symmetric_tensor;
 
 public:
   /**
@@ -77,13 +85,72 @@ public:
    * Linearized operator: Sets the linearization vector.
    */
   void
-  set_solution_linearization(VectorType const & vector) const;
+  set_solution_linearization(VectorType const & vector,
+                             bool const         update_cell_data,
+                             bool const         update_mapping,
+                             bool const         update_matrix_if_necessary) const;
+
+  /**
+   * Set the mapping pointer for the undeformed mapping.
+   */
+  void
+  set_mapping_undeformed(std::shared_ptr<dealii::Mapping<dim> const> mapping) const;
 
   /**
    * Linearized operator: Returns the linearization vector.
    */
   VectorType const &
   get_solution_linearization() const;
+
+  /**
+   * Set cell data given a linearization vector.
+   */
+  void
+  set_cell_linearization_data(VectorType const & linearization_vector) const;
+
+  void
+  cell_loop_set_linearization_data(dealii::MatrixFree<dim, Number> const & matrix_free,
+                                   VectorType &                            dst,
+                                   VectorType const &                      src,
+                                   Range const &                           range) const;
+
+  /**
+   * Overwrite members in OperatorBase to optionally use spatial integration
+   * via matrix_free_spatial.
+   */
+  void
+  apply(VectorType & dst, VectorType const & src) const override;
+
+  void
+  apply_add(VectorType & dst, VectorType const & src) const override;
+
+  void
+  rhs(VectorType & dst) const override;
+
+  void
+  rhs_add(VectorType & dst) const override;
+
+  void
+  evaluate(VectorType & dst, VectorType const & src) const override;
+
+  void
+  evaluate_add(VectorType & dst, VectorType const & src) const override;
+
+  void
+  add_diagonal(VectorType & diagonal) const override;
+
+  /*
+   * Initialize sparse matrix.
+   */
+#ifdef DEAL_II_WITH_TRILINOS
+  void
+  calculate_system_matrix(dealii::TrilinosWrappers::SparseMatrix & system_matrix) const override;
+#endif
+
+#ifdef DEAL_II_WITH_PETSC
+  void
+  calculate_system_matrix(dealii::PETScWrappers::MPI::SparseMatrix & system_matrix) const override;
+#endif
 
 private:
   /*
@@ -200,8 +267,22 @@ private:
   void
   do_cell_integral(IntegratorCell & integrator) const override;
 
+  /**
+   * Overwrite members in OperatorBase to optionally use spatial integration
+   * via matrix_free_spatial.
+   */
+  void
+  cell_loop(dealii::MatrixFree<dim, Number> const & matrix_free,
+            VectorType &                            dst,
+            VectorType const &                      src,
+            Range const &                           range) const override;
+
   mutable std::shared_ptr<IntegratorCell> integrator_lin;
   mutable VectorType                      displacement_lin;
+
+  mutable dealii::MatrixFree<dim, Number>                matrix_free_spatial;
+  mutable std::shared_ptr<MappingDoFVector<dim, Number>> mapping_spatial;
+  mutable std::shared_ptr<dealii::Mapping<dim> const>    mapping_undeformed;
 };
 
 } // namespace Structure

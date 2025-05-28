@@ -174,6 +174,48 @@ public:
   }
 
   /**
+   * Returns the dealii::Mapping for a given h_level of n_h_levels.
+   */
+  std::shared_ptr<dealii::Mapping<dim> const>
+  get_mapping_ptr(unsigned int const h_level, unsigned int const n_h_levels) const
+  {
+    if(mapping_dof_vector_fine_level.get()) // ExaDG::MappingDoFVector
+    {
+      // fine level
+      if(h_level == n_h_levels - 1)
+      {
+        return mapping_dof_vector_fine_level->get_mapping();
+      }
+      else // coarse levels
+      {
+        AssertThrow(h_level < mapping_dof_vector_coarse_levels.size(),
+                    dealii::ExcMessage("Vector of coarse mappings seems to have incorrect size."));
+
+        return mapping_dof_vector_coarse_levels[h_level]->get_mapping();
+      }
+    }
+    else // standard dealii::Mapping
+    {
+      // use mapping_fine_level on the fine level or on all levels if mapping_coarse_levels is
+      // uninitialized
+      if(h_level == n_h_levels - 1 or not(mapping_coarse_levels.get()))
+      {
+        AssertThrow(mapping_fine_level.get(),
+                    dealii::ExcMessage("Fine-level mapping is uninitialized."));
+
+        return mapping_fine_level;
+      }
+      else // coarse levels
+      {
+        AssertThrow(mapping_coarse_levels.get(),
+                    dealii::ExcMessage("mapping_coarse_levels is uninitialized."));
+
+        return mapping_coarse_levels;
+      }
+    }
+  }
+
+  /**
    * This function creates coarse mappings of type MappingDoFVector for use in
    * multigrid with h-transfer given a fine level mapping of type MappingDoFVector.
    *

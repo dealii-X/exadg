@@ -19,6 +19,9 @@
  *  ______________________________________________________________________
  */
 
+// deal.II
+#include <deal.II/numerics/vector_tools.h>
+
 // ExaDG
 #include <exadg/functions_and_boundary_conditions/interpolate.h>
 #include <exadg/grid/grid_data.h>
@@ -228,18 +231,31 @@ Operator<dim, Number>::setup_operators()
   operator_data.unsteady            = (param.problem_type == ProblemType::Unsteady);
   operator_data.density             = param.density;
   operator_data.large_deformation   = param.large_deformation;
+  operator_data.mapping_degree      = param.mapping_degree;
+  operator_data.stable_formulation  = param.stable_formulation;
   if(param.large_deformation)
   {
-    operator_data.pull_back_traction = param.pull_back_traction;
+    operator_data.pull_back_traction      = param.pull_back_traction;
+    operator_data.spatial_integration     = param.spatial_integration;
+    operator_data.force_material_residual = param.force_material_residual;
+    operator_data.cache_level             = param.cache_level;
+    operator_data.check_type              = param.check_type;
   }
   else
   {
-    operator_data.pull_back_traction = false;
+    operator_data.pull_back_traction  = false;
+    operator_data.spatial_integration = false;
   }
 
   if(param.large_deformation)
   {
     elasticity_operator_nonlinear.initialize(*matrix_free, affine_constraints, operator_data);
+
+    // Set undeformed mapping to construct map for spatial integration
+    if(param.spatial_integration)
+    {
+      elasticity_operator_nonlinear.set_mapping_undeformed(mapping);
+    }
   }
   else
   {
@@ -453,17 +469,21 @@ Operator<dim, Number>::setup_preconditioner()
   {
     if(param.large_deformation)
     {
-      typedef PreconditionerAMG<NonLinearOperator<dim, Number>, Number> AMG;
+      typedef PreconditionerAMG<dim, NonLinearOperator<dim, Number>, Number> AMG;
       preconditioner = std::make_shared<AMG>(elasticity_operator_nonlinear,
-                                             false /* initialize */,
-                                             param.multigrid_data.coarse_problem.amg_data);
+                                             false,
+                                             param.multigrid_data.coarse_problem.amg_data,
+                                             dof_handler,
+                                             *mapping);
     }
     else
     {
-      typedef PreconditionerAMG<LinearOperator<dim, Number>, Number> AMG;
+      typedef PreconditionerAMG<dim, LinearOperator<dim, Number>, Number> AMG;
       preconditioner = std::make_shared<AMG>(elasticity_operator_linear,
-                                             false /* initialize */,
-                                             param.multigrid_data.coarse_problem.amg_data);
+                                             false,
+                                             param.multigrid_data.coarse_problem.amg_data,
+                                             dof_handler,
+                                             *mapping);
     }
   }
   else
@@ -771,6 +791,7 @@ Operator<dim, Number>::compute_initial_acceleration(VectorType &       initial_a
     // Set initial acceleration for the Dirichlet degrees of freedom so that the initial
     // acceleration is also correct on the Dirichlet boundary
     mass_operator.set_inhomogeneous_boundary_values(initial_acceleration);
+    affine_constraints_periodicity_and_hanging_nodes.distribute(initial_acceleration);
   }
 }
 
@@ -806,6 +827,14 @@ Operator<dim, Number>::evaluate_nonlinear_residual(VectorType &       dst,
   // before evaluating the elasticity operator.
   update_elasticity_operator(factor, time);
 
+  // update linearization vector for interpolation and update mapping
+  // if we integrate in the spatial configuration
+  elasticity_operator_nonlinear.set_solution_linearization(src,
+                                                           false /* update_cell_data */,
+                                                           true /* update_mapping */,
+                                                           false /* update_matrix_if_necessary */);
+  //  std::cout << "evaluating nonlinear residual\n";
+
   elasticity_operator_nonlinear.evaluate_nonlinear(dst, src);
 
   // dynamic problems
@@ -834,7 +863,11 @@ template<int dim, typename Number>
 void
 Operator<dim, Number>::set_solution_linearization(VectorType const & vector) const
 {
-  elasticity_operator_nonlinear.set_solution_linearization(vector);
+  //  std::cout << "setting linearization vector\n";
+  elasticity_operator_nonlinear.set_solution_linearization(vector,
+                                                           true /* update_cell_data */,
+                                                           true /* update_mapping */,
+                                                           true /* update_matrix_if_necessary */);
 }
 
 template<int dim, typename Number>
@@ -855,6 +888,14 @@ Operator<dim, Number>::evaluate_elasticity_operator(VectorType &       dst,
 
   if(param.large_deformation)
   {
+    // update linearization vector for interpolation and update mapping
+    // if we integrate in the spatial configuration
+    elasticity_operator_nonlinear.set_solution_linearization(
+      src,
+      false /* update_cell_data */,
+      true /* update_mapping */,
+      false /* update_matrix_if_necessary */);
+
     elasticity_operator_nonlinear.evaluate_nonlinear(dst, src);
   }
   else
@@ -912,6 +953,7 @@ Operator<dim, Number>::solve_nonlinear(VectorType &       sol,
   // set inhomogeneous Dirichlet values in order to evaluate the nonlinear residual correctly
   elasticity_operator_nonlinear.set_time(time);
   elasticity_operator_nonlinear.set_inhomogeneous_boundary_values(sol);
+  affine_constraints_periodicity_and_hanging_nodes.distribute(sol);
 
   // call Newton solver
   Newton::UpdateData update;
@@ -980,6 +1022,7 @@ Operator<dim, Number>::solve_linear(VectorType &       sol,
   // Set Dirichlet degrees of freedom according to Dirichlet boundary condition.
   elasticity_operator_linear.set_time(time);
   elasticity_operator_linear.set_inhomogeneous_boundary_values(sol);
+  affine_constraints_periodicity_and_hanging_nodes.distribute(sol);
 
   return iterations;
 }

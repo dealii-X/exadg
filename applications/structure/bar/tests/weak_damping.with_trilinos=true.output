@@ -27,6 +27,7 @@ Mathematical model:
   Large deformation:                         true
   Pull back body force:                      false
   Pull back traction:                        false
+  Perform cell integral in spatial configuration:false
 
 Physical quantities:
   Density:                                   1.0000e-03
@@ -59,37 +60,37 @@ Solver:
 Newton:
   Maximum number of iterations:              100
   Absolute solver tolerance:                 1.0000e-09
-  Relative solver tolerance:                 1.0000e-09
+  Relative solver tolerance:                 1.0000e-04
 
 Linear solver:
   Solver:                                    FGMRES
   Maximum number of iterations:              1000
   Absolute solver tolerance:                 1.0000e-12
   Relative solver tolerance:                 1.0000e-08
-  Maximum size of Krylov space:              100
+  Maximum size of Krylov space:              30
   Preconditioner:                            Multigrid
   Multigrid type:                            phMG
-  p-sequence:                                Bisect
+  p-sequence:                                DecreaseByOne
   Smoother:                                  Chebyshev
   Preconditioner smoother:                   PointJacobi
-  Iterations smoother:                       5
-  Smoothing range:                           2.0000e+01
+  Iterations smoother:                       12
+  Smoothing range:                           6.0000e+01
   Iterations eigenvalue estimation:          20
-  Coarse grid solver:                        CG
+  Coarse grid solver:                        GMRES
   Coarse grid preconditioner:                AMG
-  Maximum number of iterations:              10000
+  Maximum number of iterations:              1000
   Absolute solver tolerance:                 1.0000e-12
   Relative solver tolerance:                 1.0000e-03
   Maximum size of Krylov space:              30
       AMG type:                              ML
-      Smoother sweeps:                       1
-      Number of cycles:                      1
+      Smoother sweeps:                       2
+      Number of cycles:                      2
       Smoother type:                         ILU
 
 Generating grid for 3-dimensional problem:
 
   Max. number of refinements:                0
-  Number of cells:                           4
+  Number of cells:                           1
 
 Construct elasticity operator ...
 
@@ -97,7 +98,7 @@ Continuous Galerkin finite element discretization:
 
   degree of 1D polynomials:                  1
   number of dofs per cell:                   24
-  number of dofs (total):                    60
+  number of dofs (total):                    24
 
 ... done!
 
@@ -120,4 +121,4 @@ ________________________________________________________________________________
 ________________________________________________________________________________
 
 Calculate error for all fields at time t = 1.0000e+00:
-  Relative error (L2-norm): 1.02068e+00
+  Relative error (L2-norm): 1.02111e+00

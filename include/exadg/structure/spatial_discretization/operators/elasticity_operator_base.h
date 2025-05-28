@@ -38,6 +38,12 @@ struct OperatorData : public OperatorBaseData
     : OperatorBaseData(),
       large_deformation(false),
       pull_back_traction(false),
+      spatial_integration(false),
+      force_material_residual(false),
+      stable_formulation(false),
+      check_type(0),
+      cache_level(0),
+      mapping_degree(1),
       unsteady(false),
       density(1.0),
       quad_index_gauss_lobatto(0)
@@ -50,10 +56,28 @@ struct OperatorData : public OperatorBaseData
   // Boolean parameter differentiating between linear elasticity and finite strain theory
   bool large_deformation;
 
-  // This parameter is only relevant for nonlinear operator
+  // These two parameters are only relevant for nonlinear operator
   // with large deformations. When set to true, the traction t
   // is pulled back to the reference configuration, t_0 = da/dA t.
+  // Spatial integration of the cell integral using an updated mapping
+  // is enabled via spatial_integration, where the residual evaluation
+  // may be forced to be evalutated in the material configuration.
   bool pull_back_traction;
+  bool spatial_integration;
+  bool force_material_residual;
+
+  // Adopt numerically stable variants of the material models.
+  bool stable_formulation;
+
+  // For nonlinear mateiral models, check the determinant of the Jacobian
+  // and potentially modify it for J <= 0 and check_type > 0.
+  int check_type;
+
+  // This variable determines how much data is being precomputed
+  // and stored in the integration points.
+  unsigned int cache_level;
+
+  unsigned int mapping_degree;
 
   // activates mass operator in operator evaluation for unsteady problems
   bool unsteady;

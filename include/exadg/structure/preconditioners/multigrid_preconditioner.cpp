@@ -108,7 +108,10 @@ MultigridPreconditioner<dim, Number>::update()
     // Note: This function also re-assembles the sparse matrix in case a matrix-based implementation
     // is used
     this->get_operator_nonlinear(this->get_number_of_levels() - 1)
-      ->set_solution_linearization(*vector_multigrid_type_ptr);
+      ->set_solution_linearization(*vector_multigrid_type_ptr,
+                                   true /* update_cell_data */,
+                                   true /* update_mapping */,
+                                   true /* update_matrix_if_necessary */);
 
     // interpolate displacement vector from fine to coarse level
     this->transfer_from_fine_to_coarse_levels(
@@ -120,8 +123,27 @@ MultigridPreconditioner<dim, Number>::update()
         this->transfers->interpolate(fine_level, vector_coarse_level, vector_fine_level);
         // Note: This function also re-assembles the sparse matrix in case a matrix-based
         // implementation is used
-        this->get_operator_nonlinear(coarse_level)->set_solution_linearization(vector_coarse_level);
+        this->get_operator_nonlinear(coarse_level)
+          ->set_solution_linearization(vector_coarse_level,
+                                       true /* update_cell_data */,
+                                       false /* update_mapping */,
+                                       true /* update_matrix_if_necessary */);
       });
+
+    // Update the coarse h level mappings in the spatial integration approach.
+    bool constexpr update_coarse_mappings = false;
+    if constexpr(update_coarse_mappings)
+    {
+      OperatorData<dim> const & operator_data =
+        this->get_operator_nonlinear(this->get_number_of_levels() - 1)->get_data();
+      if(operator_data.spatial_integration)
+      {
+        // This is expensive and hence disabled since `mapping_degree_coarse_grids`
+        // and `level_info[level].degree` are rarely the same.
+        this->multigrid_mappings->initialize_coarse_mappings(
+          *this->grid, this->grid->coarse_triangulations.size() + 1);
+      }
+    }
   }
   else // linear problems
   {
@@ -248,6 +270,12 @@ MultigridPreconditioner<dim, Number>::initialize_operator(unsigned int const lev
     pde_operator_level->initialize(*this->matrix_free_objects[level],
                                    *this->constraints[level],
                                    data);
+
+    // Set undeformed mapping to construct map for spatial integration.
+    if(data.spatial_integration)
+    {
+      pde_operator_level->set_mapping_undeformed(this->get_mapping_ptr(level));
+    }
 
     mg_operator_level = std::make_shared<MGOperatorNonlinear>(pde_operator_level);
   }

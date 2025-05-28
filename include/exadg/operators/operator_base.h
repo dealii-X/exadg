@@ -238,7 +238,7 @@ public:
   init_system_matrix(dealii::TrilinosWrappers::SparseMatrix & system_matrix,
                      MPI_Comm const &                         mpi_comm) const;
 
-  void
+  virtual void
   calculate_system_matrix(dealii::TrilinosWrappers::SparseMatrix & system_matrix) const;
 #endif
 
@@ -250,7 +250,7 @@ public:
   init_system_matrix(dealii::PETScWrappers::MPI::SparseMatrix & system_matrix,
                      MPI_Comm const &                           mpi_comm) const;
 
-  void
+  virtual void
   calculate_system_matrix(dealii::PETScWrappers::MPI::SparseMatrix & system_matrix) const;
 #endif
 
@@ -269,13 +269,13 @@ public:
    * iterative solvers (as well as multigrid preconditioners and smoothers). Operations of this type
    * are called apply_...() and vmult_...() as required by deal.II interfaces.
    */
-  void
+  virtual void
   apply(VectorType & dst, VectorType const & src) const;
 
   /*
    * See function apply() for a description.
    */
-  void
+  virtual void
   apply_add(VectorType & dst, VectorType const & src) const;
 
   void
@@ -345,7 +345,7 @@ public:
   void
   calculate_diagonal(VectorType & diagonal) const;
 
-  void
+  virtual void
   add_diagonal(VectorType & diagonal) const;
 
   /*
@@ -458,6 +458,32 @@ protected:
                                   IntegratorFace & integrator_p) const;
 
   /*
+   * This function loops over all cells and calculates cell integrals.
+   */
+  virtual void
+  cell_loop(dealii::MatrixFree<dim, Number> const & matrix_free,
+            VectorType &                            dst,
+            VectorType const &                      src,
+            Range const &                           range) const;
+
+  /*
+   * Initialize sparse matrix.
+   */
+  template<typename SparseMatrix>
+  void
+  internal_calculate_system_matrix(SparseMatrix & system_matrix) const;
+
+  /*
+   * Calculate sparse matrix.
+   */
+  template<typename SparseMatrix>
+  void
+  cell_loop_calculate_system_matrix(dealii::MatrixFree<dim, Number> const & matrix_free,
+                                    SparseMatrix &                          dst,
+                                    SparseMatrix const &                    src,
+                                    Range const &                           range) const;
+
+  /*
    * Matrix-free object.
    */
   lazy_ptr<dealii::MatrixFree<dim, Number>> matrix_free;
@@ -556,15 +582,6 @@ private:
                           VectorType &                            dst,
                           VectorType const &                      src,
                           Range const &                           range) const;
-
-  /*
-   * This function loops over all cells and calculates cell integrals.
-   */
-  void
-  cell_loop(dealii::MatrixFree<dim, Number> const & matrix_free,
-            VectorType &                            dst,
-            VectorType const &                      src,
-            Range const &                           range) const;
 
   /*
    * This function loops over all interior faces and calculates face integrals.
@@ -696,20 +713,9 @@ private:
                               dealii::DynamicSparsityPattern & dsp,
                               MPI_Comm const &                 mpi_comm) const;
 
-  template<typename SparseMatrix>
-  void
-  internal_calculate_system_matrix(SparseMatrix & system_matrix) const;
-
   /*
    * Calculate sparse matrix.
    */
-  template<typename SparseMatrix>
-  void
-  cell_loop_calculate_system_matrix(dealii::MatrixFree<dim, Number> const & matrix_free,
-                                    SparseMatrix &                          dst,
-                                    SparseMatrix const &                    src,
-                                    Range const &                           range) const;
-
   template<typename SparseMatrix>
   void
   face_loop_calculate_system_matrix(dealii::MatrixFree<dim, Number> const & matrix_free,

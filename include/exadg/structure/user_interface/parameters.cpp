@@ -37,6 +37,12 @@ Parameters::Parameters()
     large_deformation(false),
     pull_back_body_force(false),
     pull_back_traction(false),
+    spatial_integration(false),
+
+    force_material_residual(false),
+    stable_formulation(false),
+    check_type(0),
+    cache_level(0),
 
     // PHYSICAL QUANTITIES
     density(1.0),
@@ -109,6 +115,17 @@ Parameters::check() const
                 dealii::ExcMessage("Weak damping coefficient defined positive."));
   }
 
+  if(spatial_integration)
+  {
+    AssertThrow(large_deformation,
+                dealii::ExcMessage("Spatial integration only different from "
+                                   "material configuration for finite strain problems."));
+
+    AssertThrow(mapping_degree == degree,
+                dealii::ExcMessage("Mapping degree and approximation degree "
+                                   "need to match for spatial integration."));
+  }
+
   // SPATIAL DISCRETIZATION
   grid.check();
 
@@ -169,6 +186,7 @@ Parameters::print_parameters_mathematical_model(dealii::ConditionalOStream const
   {
     print_parameter(pcout, "Pull back body force", pull_back_body_force);
     print_parameter(pcout, "Pull back traction", pull_back_traction);
+    print_parameter(pcout, "Perform cell integral in spatial configuration", spatial_integration);
   }
 }
 
